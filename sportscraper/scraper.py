@@ -1,24 +1,47 @@
 # scraper.py
+'''
+Scraper classes for use in nfl, nba, etc.
 
+'''
+
+import datetime
 import hashlib
 import json
 import logging
 import os
 import re
 import time
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlencode
 
 from requests_html import HTMLSession
 
+try:
+    from pyvirtualdisplay import Display
+except ImportError:
+    pass
+try:
+    from seleniumwire import webdriver
+except ImportError:
+    try:
+        from selenium import webdriver
+    except ImportError:
+        pass
+try:
+    from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
+    from selenium.webdriver.remote.errorhandler import WebDriverException
+    from selenium.common.exceptions import TimeoutException
+except ImportError:
+    pass
+
 
 class RequestScraper():
+    '''
+    Base class for scraping using requests_html session
+
+    '''
 
     def __init__(self, **kwargs):
         '''
-        Base class for common scraping tasks
-
-        Args:
-
         '''
         logging.getLogger(__name__).addHandler(logging.NullHandler())
         self.urls = []
@@ -26,17 +49,8 @@ class RequestScraper():
         # use requests HTML to aid parsing
         # has all same methods as requests.Session
         _s = HTMLSession()
-
-        # delay/expire
-        if kwargs.get('delay'):
-            self.delay = kwargs['delay']
-        else:
-            self.delay = 2
-
-        if kwargs.get('expire_hours'):
-            self.expire_hours = kwargs['expire_hours']
-        else:
-            self.expire_hours = 168
+        self.delay = kwargs.get('delay', 2)
+        self.expire_hours = kwargs.get('expire_hours', 168)
 
         # add cookies
         if kwargs.get('cookies'):
@@ -48,51 +62,69 @@ class RequestScraper():
             except (NameError, ImportError):
                 import http.cookiejar
                 _s.cookies = http.cookiejar.MozillaCookieJar()
-                
+
         # add headers
         if kwargs.get('headers'):
             _s.headers = kwargs['headers']
         else:
-            ua = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
-                  '(KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36')
-            _s.headers = {'User-Agent': ua}
+            user_agent = ('Mozilla/5.0 (X11; Linux x86_64) '
+                          'AppleWebKit/537.36 (KHTML, '
+                          'like Gecko) Chrome/55.0.2883.87 '
+                          'Safari/537.36')
+            _s.headers = {'User-Agent': user_agent}
 
         # add proxies
         if kwargs.get('proxies'):
             _s.proxies = kwargs['proxies']
 
         # add cache
-        if not '/' in kwargs.get('cache_name', ''):
+        if '/' not in kwargs.get('cache_name', ''):
             self.cache_name = os.path.join('/tmp', kwargs['cache_name'])
         try:
             from cachecontrol import CacheControlAdapter
             from cachecontrol.heuristics import ExpiresAfter
             from cachecontrol.caches import FileCache
-            _s.mount('http://', CacheControlAdapter(cache=FileCache(self.cache_name), 
-                                    cache_etags = False,
-                                    heuristic=ExpiresAfter(hours=self.expire_hours)))
-        except ImportError as e:
+            _s.mount(
+                'http://',
+                CacheControlAdapter(
+                    cache=FileCache(
+                        self.cache_name),
+                    cache_etags=False,
+                    heuristic=ExpiresAfter(
+                        hours=self.expire_hours)))
+        except ImportError:
             try:
                 import requests_cache
                 requests_cache.install_cache(self.cache_name)
-            except:
+            except BaseException:
                 logging.exception('could not install cache')
-        self.s = _s
+        self.session = _s
 
     @property
     def headers(self):
-        return self.s.headers
+        '''
+        Request headers
+
+        '''
+        return self.session.headers
 
     @headers.setter
     def headers(self, value):
-        self.s.headers.update(value)
+        '''
+        Update request headers
+
+        Args:
+            value(dict): additional headers
+
+        '''
+        self.session.headers.update(value)
 
     def get(self, url, payload=None, encoding='utf-8', return_object=False):
         '''
         Args:
             url(str):
-            payload(dict):
-            encoding(str):
+            payload(dict): url parameters
+            encoding(str): default utf-8
             include_object(bool):
 
         Returns:
@@ -100,17 +132,18 @@ class RequestScraper():
 
         '''
         if payload:
-            r = self.s.get(url, params={k:payload[k] for k in sorted(payload)})
+            resp = self.session.get(
+                url, params={
+                    k: payload[k] for k in sorted(payload)})
         else:
-            r = self.s.get(url)
-        self.urls.append(r.url)
-        r.raise_for_status()
+            resp = self.session.get(url)
+        self.urls.append(resp.url)
+        resp.raise_for_status()
         if self.delay:
             time.sleep(self.delay)
         if return_object:
-            return r
-        else:
-            return r.content.decode(encoding)
+            return resp
+        return resp.content.decode(encoding)
 
     def get_filecache(self, url, savedir='/tmp', encoding='utf-8'):
         '''
@@ -125,16 +158,18 @@ class RequestScraper():
             str
 
         '''
-        fn = os.path.join(savedir, '{}.html'.format(hashlib.md5(url).hexdigest()))
-        if os.path.exists(fn):
-            with open(fn, 'rb') as infile:
+        file_name = os.path.join(
+            savedir, '{}.html'.format(
+                hashlib.md5(url).hexdigest()))
+        if os.path.exists(file_name):
+            with open(file_name, 'rb') as infile:
                 content = infile.read()
         else:
-            r = self.s.get(url)
-            self.urls.append(r.url)
-            r.raise_for_status()
-            content = r.content.decode(encoding)
-            with open(fn, 'wb') as outfile:
+            resp = self.session.get(url)
+            self.urls.append(resp.url)
+            resp.raise_for_status()
+            content = resp.content.decode(encoding)
+            with open(file_name, 'wb') as outfile:
                 outfile.write(content)
             if self.delay:
                 time.sleep(self.delay)
@@ -153,14 +188,16 @@ class RequestScraper():
 
         '''
         if payload:
-            r = self.s.get(url, headers=self.headers, params={k:payload[k] for k in sorted(payload)})
+            resp = self.session.get(
+                url, headers=self.headers, params={
+                    k: payload[k] for k in sorted(payload)})
         else:
-            r = self.s.get(url, headers=self.headers, params=None)
-        self.urls.append(r.url)
-        r.raise_for_status()
+            resp = self.session.get(url, headers=self.headers, params=None)
+        self.urls.append(resp.url)
+        resp.raise_for_status()
         if self.delay:
             time.sleep(self.delay)
-        return r.json()
+        return resp.json()
 
     def get_tor(self, url):
         '''
@@ -169,12 +206,13 @@ class RequestScraper():
         '''
         try:
             from torrequest import TorRequest
-            with TorRequest() as tr:
-                content = tr.get(url)
-                tr.reset_identity()
+            with TorRequest() as tor_req:
+                content = tor_req.get(url)
+                self.urls.append(url)
+                tor_req.reset_identity()
                 return content
-        except:
-            logging.exception('could not get %s' % url)
+        except BaseException:
+            logging.exception('could not get %s', url)
             return None
 
     def post(self, url, payload):
@@ -188,45 +226,33 @@ class RequestScraper():
             HTTPResponse
 
         '''
-        r = self.s.post(url, headers=self.headers, params=payload)
-        self.urls.append(r.url)
-        r.raise_for_status()
+        resp = self.session.post(url, headers=self.headers, params=payload)
+        self.urls.append(resp.url)
+        resp.raise_for_status()
         if self.delay:
             time.sleep(self.delay)
-        return r
+        return resp
 
 
 class BrowserScraper():
     '''
-    
+    Scraper using selenium
+
     '''
 
-    def __init__(self, profile=None, visible=False, cache_dir=None):
+    def __init__(self, profile=None, visible=False, cache_dir='/tmp'):
         '''
         Scraper using selenium
 
         Args:
-            profile: string, path to firefox profile, e.g. $HOME/.mozilla/firefox/6h98gbaj.default'
-        '''
-        try:
-            from pyvirtualdisplay import Display
-        except ImportError:
-            pass
-        try:
-            from seleniumwire import webdriver
-        except ImportError:
-            from selenium import webdriver
-        try:
-            from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-            from selenium.webdriver.remote.errorhandler import WebDriverException
-            from selenium.common.exceptions import TimeoutException
-        except ImportError:
-            pass
+            profile(str): path to firefox profile
+            visible(bool): show browser, use virtual display if False
+            cache_dir(str): default /tmp
 
+        '''
         logging.getLogger(__name__).addHandler(logging.NullHandler())
         self.urls = []
-        self.cache_dir = cache_dir
-
+        self.cachedir = cache_dir
         if not visible:
             self.display = Display(visible=0, size=(800, 600))
             self.display.start()
@@ -235,10 +261,10 @@ class BrowserScraper():
         firefox_profile = webdriver.FirefoxProfile(profile)
         if profile:
             self.browser = webdriver.Firefox(capabilities=caps,
-                             firefox_profile=firefox_profile,
-                             log_path=os.devnull)
+                                             firefox_profile=firefox_profile,
+                                             log_path=os.devnull)
         else:
-            self.browser = webdriver.Firefox(capabilities=caps, 
+            self.browser = webdriver.Firefox(capabilities=caps,
                                              log_path=os.devnull)
         self.browser.set_page_load_timeout(15)
 
@@ -255,10 +281,12 @@ class BrowserScraper():
         if payload:
             url = '{}?{}'.format(url, urlencode(payload))
         self.urls.append(url)
-        if self.cache_dir:
-            fn = os.path.join(self.savedir, '{}.html'.format(hashlib.md5(url).hexdigest()))
-            if os.path.exists(fn):
-                with open(fn, 'rb') as infile:
+        if self.cachedir:
+            file_name = os.path.join(
+                self.cachedir, '{}.html'.format(
+                    hashlib.md5(url).hexdigest()))
+            if os.path.exists(file_name):
+                with open(file_name, 'rb') as infile:
                     return infile.read()
         try:
             self.browser.get(url)
@@ -279,10 +307,12 @@ class BrowserScraper():
         if payload:
             url = '{}?{}'.format(url, urlencode(payload))
         self.urls.append(url)
-        if self.cache_dir:
-            fn = os.path.join(self.savedir, '{}.html'.format(hashlib.md5(url).hexdigest()))
-            if os.path.exists(fn):
-                with open(fn, 'rb') as infile:
+        if self.cachedir:
+            file_name = os.path.join(
+                self.cachedir, '{}.html'.format(
+                    hashlib.md5(url).hexdigest()))
+            if os.path.exists(file_name):
+                with open(file_name, 'rb') as infile:
                     return infile.read()
         self.browser.get(url)
         content = self.browser.find_element_by_tag_name('body').text
@@ -301,76 +331,71 @@ class BrowserScraper():
         '''
         try:
             return self.browser.execute_script('return {};'.format(varname))
-        except WebDriverException as e:
-            logging.exception(e)
+        except WebDriverException as err:
+            logging.exception(err)
             return None
 
     def requests(self, dump=True):
         '''
         Retrieves and dumps request information
-        
+
         Args:
             dump(bool): print request information
-            
+
         Returns:
             list
-            
+
         '''
         responses = []
         for request in self.browser.requests:
             if request.response:
                 responses.append(request.response)
                 if dump:
-                    print(request.path, 
-                          request.response.status_code, 
+                    print(request.path,
+                          request.response.status_code,
                           request.response.headers['Content-Type'])
         return responses
 
 
-class WaybackScraper(FootballScraper):
+class WaybackScraper(RequestScraper):
     '''
-    
+    Scraper for wayback machine. Subclass of RequestScraper.
+
     '''
+
     def __init__(self, **kwargs):
         '''
         Scraper for waybackmachine API
-
-        Args:
-            headers: dictionary of HTTP headers
-            cookies: cookie object, such as browsercookie.firefox()
-            cache_name: str 'nbacomscraper'
-            expire_hours: how long to cache requests
-            as_string: return as raw string rather than json parsed into python data structure
 
         '''
         RequestScraper.__init__(self, **kwargs)
         self.wburl = 'http://archive.org/wayback/available?url={}&timestamp={}'
 
-    @classmethod
+    @staticmethod
     def convert_format(datestr, site):
-    '''
-    Converts string from one date format to another
+        '''
+        Converts string from one date format to another
 
-    Args:
-        datestr(str): date as string
-        site(str): 'nfl', 'fl', 'std', etc.
+        Args:
+            datestr(str): date as string
+            site(str): 'nfl', 'fl', 'std', etc.
 
-    Returns:
-        str
+        Returns:
+            str
 
-    '''
-    fmt = format_type(datestr)
-    newfmt = site_format(site)
-    if fmt and newfmt:
-        try:
-            dtobj = datetime.datetime.strptime(datestr, fmt)
-            return datetime.datetime.strftime(dtobj, newfmt)
-        except BaseException:
+        '''
+        fmt = WaybackScraper.format_type(datestr)
+        newfmt = WaybackScraper.site_format(site)
+        if fmt and newfmt:
+            try:
+                dtobj = datetime.datetime.strptime(datestr, fmt)
+                return datetime.datetime.strftime(dtobj, newfmt)
+            except BaseException:
+                return None
+        else:
             return None
-    else:
-        return None
 
-    @classmethod
+    @staticmethod
     def format_type(datestr):
         '''
         Uses regular expressions to determine format of datestring
@@ -384,20 +409,20 @@ class WaybackScraper(FootballScraper):
         '''
         val = None
         if re.match(r'\d{1,2}_\d{1,2}_\d{4}', datestr):
-            val = site_format('fl')
+            val = WaybackScraper.site_format('fl')
         elif re.match(r'\d{4}-\d{2}-\d{2}', datestr):
-            val = site_format('nfl')
+            val = WaybackScraper.site_format('nfl')
         elif re.match(r'\d{1,2}-\d{1,2}-\d{4}', datestr):
-            val = site_format('std')
+            val = WaybackScraper.site_format('std')
         elif re.match(r'\d{1,2}/\d{1,2}/\d{4}', datestr):
-            val = site_format('odd')
+            val = WaybackScraper.site_format('odd')
         elif re.match(r'\d{8}', datestr):
-            val = site_format('db')
+            val = WaybackScraper.site_format('db')
         elif re.match(r'\w+ \d+, \d+', datestr):
-            val = site_format('bdy')
+            val = WaybackScraper.site_format('bdy')
         return val
 
-    @classmethod
+    @staticmethod
     def site_format(site):
         '''
         Stores date formats used by different sites
@@ -421,7 +446,7 @@ class WaybackScraper(FootballScraper):
             'espn_fantasy': '%Y%m%d'
         }.get(site, None)
 
-    @classmethod
+    @staticmethod
     def strtodate(dstr):
         '''
         Converts date formats used by different sites
@@ -433,9 +458,10 @@ class WaybackScraper(FootballScraper):
             datetime.datetime
 
         '''
-        return datetime.datetime.strptime(dstr, format_type(dstr))
+        fmt = WaybackScraper.format_type(dstr)
+        return datetime.datetime.strptime(dstr, fmt)
 
-    @classmethod
+    @staticmethod
     def subtract_datestr(date1, date2):
         '''
         Subtracts d2 from d1
@@ -448,13 +474,14 @@ class WaybackScraper(FootballScraper):
             int: number of days between dates
 
         '''
-        if isinstance(date1, basestring):
-            delta = strtodate(date1) - strtodate(date2)
+        if isinstance(date1, str):
+            delta = WaybackScraper.strtodate(date1) - \
+                WaybackScraper.strtodate(date2)
         else:
             delta = date1 - date2
         return delta.days
 
-    @classmethod
+    @staticmethod
     def today(fmt='nfl'):
         '''
         Datestring for today's date
@@ -466,51 +493,54 @@ class WaybackScraper(FootballScraper):
             str
 
         '''
-        fmt = site_format(fmt)
+        fmt = WaybackScraper.site_format(fmt)
         if not fmt:
             raise ValueError('invalid date format')
         return datetime.datetime.strftime(datetime.datetime.today(), fmt)
-  
-    def get_wayback(self, url, d=None, max_delta=None):
+
+    def get_wayback(self, url, datestr=None, max_delta=None):
         '''
         Gets page from the wayback machine
+
         Args:
             url: of the site you want, not the wayback machine
-            d: datestring, if None then get most recent one
+            datestr: datestring, if None then get most recent one
             max_delta: int, how many days off can the last page be from the requested date
+
         Returns:
             content: HTML string
+
         '''
         content = None
-        ts = None
+        time_stamp = None
 
-        if not d:
-            d = today('db')
+        if not datestr:
+            datestr = WaybackScraper.today('db')
         else:
-            d = convert_format(d, 'db')
-        resp = self.get_json(self.wburl.format(url, d))
+            datestr = WaybackScraper.convert_format(datestr, 'db')
+        resp = self.get_json(self.wburl.format(url, datestr))
 
         if resp:
             try:
-                ts = resp['archived_snapshots']['closest']['timestamp'][:8]
-                if ts and max_delta:
+                time_stamp = resp['archived_snapshots']['closest']['timestamp'][:8]
+                if time_stamp and max_delta:
                     closest_url = resp['archived_snapshots']['closest']['url']
-                    if abs(subtract_datestr(d, ts)) <= max_delta:
-                        content = self.get(resp['archived_snapshots']['closest']['url'])
+                    diff = WaybackScraper.subtract_datestr(datestr, time_stamp)
+                    if abs(diff) <= max_delta:
+                        url = resp['archived_snapshots']['closest']['url']
+                        content = self.get(url)
                     else:
-                        logging.error('page is too old: {}'.format(ts))
+                        logging.error('page is too old: %s', time_stamp)
                 else:
                     closest_url = resp['archived_snapshots']['closest']['url']
                     content = self.get(closest_url)
-
-            except Exception as e:
-                logging.exception(e)
+            except (TypeError, ValueError) as err:
+                logging.exception(err)
         else:
             logging.error('url unavailable on wayback machine')
 
-        return content, ts
+        return content, time_stamp
 
 
 if __name__ == "__main__":
     pass
-
