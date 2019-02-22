@@ -240,7 +240,7 @@ class BrowserScraper():
 
     '''
 
-    def __init__(self, profile=None, visible=False, cache_dir='/tmp'):
+    def __init__(self, profile=None, visible=False, cache_dir=None):
         '''
         Scraper using selenium
 
@@ -253,11 +253,14 @@ class BrowserScraper():
         logging.getLogger(__name__).addHandler(logging.NullHandler())
         self.urls = []
         self.cachedir = cache_dir
+        
         if not visible:
             self.display = Display(visible=0, size=(800, 600))
             self.display.start()
+        
         caps = DesiredCapabilities.FIREFOX.copy()
         caps['marionette'] = True
+        
         firefox_profile = webdriver.FirefoxProfile(profile)
         if profile:
             self.browser = webdriver.Firefox(capabilities=caps,
@@ -267,6 +270,20 @@ class BrowserScraper():
             self.browser = webdriver.Firefox(capabilities=caps,
                                              log_path=os.devnull)
         self.browser.set_page_load_timeout(15)
+
+    def __del__(self):
+        '''
+        Clean up zombie processes
+
+        '''
+        procnames = ["Xvfb", "geckodriver"]
+        try:
+            for proc in psutil.process_iter():
+                # check whether the process name matches
+                if proc.name() in procnames:
+                    proc.kill()
+        except:
+            pass
 
     def get(self, url, payload=None):
         '''
@@ -279,12 +296,11 @@ class BrowserScraper():
             string of HTML
         '''
         if payload:
-            url = '{}?{}'.format(url, urlencode(payload))
+            url = f'{url}?{urlencode(payload)}'
         self.urls.append(url)
         if self.cachedir:
-            file_name = os.path.join(
-                self.cachedir, '{}.html'.format(
-                    hashlib.md5(url).hexdigest()))
+            url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()
+            file_name = os.path.join(self.cachedir, f'{url_hash}.html')
             if os.path.exists(file_name):
                 with open(file_name, 'rb') as infile:
                     return infile.read()
@@ -308,9 +324,8 @@ class BrowserScraper():
             url = '{}?{}'.format(url, urlencode(payload))
         self.urls.append(url)
         if self.cachedir:
-            file_name = os.path.join(
-                self.cachedir, '{}.html'.format(
-                    hashlib.md5(url).hexdigest()))
+            url_hash = hashlib.md5(url.encode('utf-8')).hexdigest()
+            file_name = os.path.join(self.cachedir, f'{url_hash}.html')
             if os.path.exists(file_name):
                 with open(file_name, 'rb') as infile:
                     return infile.read()

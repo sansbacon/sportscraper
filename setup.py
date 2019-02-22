@@ -8,4 +8,4 @@ setup(name='sportscraper',
       author_email='eric@erictruett.com',
       license='MIT',
       packages=['sportscraper'],
-      zip_safe=False)c
+      zip_safe=False)
