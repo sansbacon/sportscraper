@@ -119,11 +119,13 @@ class RequestScraper():
         '''
         self.session.headers.update(value)
 
-    def get(self, url, payload=None, encoding='utf-8', return_object=False):
+    def get(self, url, params=None, headers=None,
+            encoding='utf-8', return_object=False):
         '''
         Args:
             url(str):
-            payload(dict): url parameters
+            params(dict): url parameters
+            headers(dict): header dict
             encoding(str): default utf-8
             include_object(bool):
 
@@ -131,12 +133,15 @@ class RequestScraper():
             str
 
         '''
-        if payload:
-            resp = self.session.get(
-                url, params={
-                    k: payload[k] for k in sorted(payload)})
+        if headers:
+            self.session.headers.update(headers)
+
+        if params:
+            resp = self.session.get(url,
+                params={k: params[k] for k in sorted(params)},
+                headers=self.headers)
         else:
-            resp = self.session.get(url)
+            resp = self.session.get(url, headers=self.headers)
         self.urls.append(resp.url)
         resp.raise_for_status()
         if self.delay:
@@ -175,7 +180,7 @@ class RequestScraper():
                 time.sleep(self.delay)
         return content
 
-    def get_json(self, url, payload=None):
+    def get_json(self, url, headers=None, payload=None):
         '''
         Gets JSON resource and (default) parses into python data structure
 
@@ -187,6 +192,9 @@ class RequestScraper():
             dict
 
         '''
+        if headers:
+            self.session.headers.update(headers)
+
         if payload:
             resp = self.session.get(
                 url, headers=self.headers, params={
@@ -212,21 +220,28 @@ class RequestScraper():
                 tor_req.reset_identity()
                 return content
         except BaseException:
-            logging.exception('could not get %s', url)
-            return None
+            logging.exception('could not get over tor %s', url)
+            return self.get(url)
 
-    def post(self, url, payload):
+    def post(self, url, data,
+             headers=None, params=None):
         '''
 
         Args:
             url (str): url for post
-            payload (dict): data to post
+            data (dict): data to post
+            headers (dict): HTTP headers
+            params (str): key-value URL parameters
 
         Returns:
             HTTPResponse
 
         '''
-        resp = self.session.post(url, headers=self.headers, params=payload)
+        if headers:
+            self.session.headers.update(headers)
+        resp = self.session.post(url, data,
+                                 headers=self.headers,
+                                 params=params)
         self.urls.append(resp.url)
         resp.raise_for_status()
         if self.delay:
@@ -253,14 +268,14 @@ class BrowserScraper():
         logging.getLogger(__name__).addHandler(logging.NullHandler())
         self.urls = []
         self.cachedir = cache_dir
-        
+
         if not visible:
             self.display = Display(visible=0, size=(800, 600))
             self.display.start()
-        
+
         caps = DesiredCapabilities.FIREFOX.copy()
         caps['marionette'] = True
-        
+
         firefox_profile = webdriver.FirefoxProfile(profile)
         if profile:
             self.browser = webdriver.Firefox(capabilities=caps,
