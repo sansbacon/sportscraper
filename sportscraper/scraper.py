@@ -19,17 +19,17 @@ try:
     from pyvirtualdisplay import Display
 except ImportError:
     pass
+#try:
+#    from seleniumwire import webdriver
+#except ImportError:
 try:
-    from seleniumwire import webdriver
+    from selenium import webdriver
 except ImportError:
-    try:
-        from selenium import webdriver
-    except ImportError:
-        pass
+    pass
 try:
     from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
     from selenium.webdriver.remote.errorhandler import WebDriverException
-    from selenium.common.exceptions import TimeoutException
+    from selenium.common.exceptions import TimeoutException, InsecureCertificateException
 except ImportError:
     pass
 
@@ -64,14 +64,13 @@ class RequestScraper():
                 _s.cookies = http.cookiejar.MozillaCookieJar()
 
         # add headers
+        user_agent = ('Mozilla/5.0 (X11; Linux x86_64) '
+                      'AppleWebKit/537.36 (KHTML, '
+                      'like Gecko) Chrome/55.0.2883.87 '
+                      'Safari/537.36')
+        _s.headers = {'User-Agent': user_agent}
         if kwargs.get('headers'):
-            _s.headers = kwargs['headers']
-        else:
-            user_agent = ('Mozilla/5.0 (X11; Linux x86_64) '
-                          'AppleWebKit/537.36 (KHTML, '
-                          'like Gecko) Chrome/55.0.2883.87 '
-                          'Safari/537.36')
-            _s.headers = {'User-Agent': user_agent}
+            _s.headers.update(kwargs['headers'])
 
         # add proxies
         if kwargs.get('proxies'):
@@ -144,6 +143,8 @@ class RequestScraper():
             resp = self.session.get(url, headers=self.headers)
         self.urls.append(resp.url)
         resp.raise_for_status()
+        if resp.status_code == 304:
+            resp = self.session.get(url, headers=self.headers)
         if self.delay:
             time.sleep(self.delay)
         if return_object:
@@ -255,7 +256,7 @@ class BrowserScraper():
 
     '''
 
-    def __init__(self, profile=None, visible=False, cache_dir=None):
+    def __init__(self, profile, visible=False, cache_dir=None):
         '''
         Scraper using selenium
 
@@ -275,16 +276,14 @@ class BrowserScraper():
 
         caps = DesiredCapabilities.FIREFOX.copy()
         caps['marionette'] = True
-
-        firefox_profile = webdriver.FirefoxProfile(profile)
         if profile:
             self.browser = webdriver.Firefox(capabilities=caps,
-                                             firefox_profile=firefox_profile,
+                                             firefox_profile=profile,
                                              log_path=os.devnull)
         else:
             self.browser = webdriver.Firefox(capabilities=caps,
                                              log_path=os.devnull)
-        self.browser.set_page_load_timeout(15)
+        self.browser.set_page_load_timeout(30)
 
     def __del__(self):
         '''
@@ -321,7 +320,8 @@ class BrowserScraper():
                     return infile.read()
         try:
             self.browser.get(url)
-        except (BrokenPipeError, TimeoutException):
+        except (InsecureCertificateException, 
+                BrokenPipeError, TimeoutException):
             time.sleep(1)
             self.browser.get(url)
         return self.browser.page_source

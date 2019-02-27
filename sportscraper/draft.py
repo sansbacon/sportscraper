@@ -4,8 +4,10 @@ draft.py
 classes for DRAFT.com
 
 '''
+import csv
 import json
 import logging
+import os
 
 from sportscraper import RequestScraper
 
@@ -14,6 +16,48 @@ class Scraper(RequestScraper):
     '''
 
     '''
+    def __init__(self, **kwargs):
+        '''
+
+        Args:
+
+            **kwargs:
+
+        '''
+        headers = {
+          'Accept': 'application/json, text/javascript, */*; q=0.01',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
+          'Connection': 'keep-alive',
+          'DNT': '1',
+          'Origin': 'https://draft.com',
+          'Referer': 'https://draft.com/upcoming',
+          'X-Build-Number': '0',
+          'X-Client-Sha': os.getenv('DRAFT_SHA'),
+          'X-Client-Type': 'web',
+          'X-User-Auth-Id': os.getenv('DRAFT_AUTH'),
+          'X-User-Token': os.getenv('DRAFT_TOKEN')}
+        super().__init__(headers=headers, **kwargs)
+
+    @staticmethod
+    def _csv_to_dict(file_name):
+        '''
+        Takes csv filename and returns dicts
+
+        Arguments:
+            file_name(str): name of file to read/parse
+
+        Returns:
+            list: of dicts
+
+        '''
+        try:
+            with open(file_name, 'r') as infile:
+                return [{k: v for k, v in row.items()} for row in
+                        csv.DictReader(infile, skipinitialspace=True, delimiter=',')]
+        except:
+            return None
+
     @staticmethod
     def _json_file(file_name):
         '''
@@ -32,7 +76,47 @@ class Scraper(RequestScraper):
         except:
             return None
 
-    def complete_contests(self, file_name=None):
+    def bestball_ownership(self, file_name=None, window_cluster_id=None):
+        '''
+        Ownership data for one window cluster
+
+        Args:
+            file_name(str):
+            window_cluster_id(int):
+
+        Returns:
+            dict
+
+        '''
+        content = None
+        if file_name:
+            content = Parser._json_file(file_name)
+        if not content:
+            url = f'https://api.playdraft.com/v1/window_clusters/{window_cluster_id}/ownerships?tournament=false'
+            content = self.get_json(url)
+        return content
+
+    def bestball_ownership_csv(self, file_name=None, window_cluster_id=None):
+        '''
+        Ownership data for one window cluster
+
+        Args:
+            file_name(str):
+            window_cluster_id(int):
+
+        Returns:
+            dict
+
+        '''
+        content = None
+        if file_name:
+            content = Parser._csv_to_dict(file_name)
+        if not content:
+            url = f'https://draft.com/bbo-csv/{window_cluster_id}/all/nfl/standard'
+            content = self.get(url)
+        return content
+
+    def clustered_complete_contests(self, file_name=None):
         '''
 
         Args:
@@ -46,9 +130,50 @@ class Scraper(RequestScraper):
         if file_name:
             contests = self._json_file(file_name)
         if not contests:
-            url = 'https://api.playdraft.com/v1/window_clusters/2015/complete_contests'
+            url = 'https://api.playdraft.com/v1/clustered_complete_contests'
             contests = self.get_json(url=url)
         return contests
+
+    def clustered_results(self, file_name=None, user_id=None):
+        '''
+        Clustered results
+
+        Args:
+            file_name(str):
+            user_id(str):
+
+        Returns:
+            dict
+
+        '''
+        content = None
+        if file_name:
+            content = self._json_file(file_name)
+        if not content:
+            url = f'https://api.playdraft.com/v1/users/{user_id}/clustered_results'
+            content = self.get_json(url=url)
+        return content
+
+    def complete_contests(self, file_name=None, window_cluster_id=None):
+        '''
+        Complete contests for one window cluster
+
+        Args:
+            file_name(str):
+            window_cluster_id(int):
+
+        Returns:
+            dict
+
+        '''
+        content = None
+        if file_name:
+            content = self._json_file(file_name)
+        if not content:
+            url = (f'https://api.playdraft.com/v2/window_clusters/'
+                   f'{window_cluster_id}/complete_contests')
+            content = self.get_json(url=url)
+        return content
 
     def draft(self, league_id=None, file_name=None):
         '''
@@ -83,16 +208,18 @@ class Scraper(RequestScraper):
         if file_name:
             return self._json_file(file_name)
         elif pool_id:
-            url = 'https://api.playdraft.com/v4/player_pool/{}'
+            url = 'https://api.playdraft.com/v5/player_pool/{}'
             return self.get_json(url.format(pool_id))
         else:
             return ValueError('must specify pool_id or fn')
 
-    def results(self, file_name=None):
+    def results(self, file_name=None, window_cluster_id=None):
         '''
+        Results for one window cluster
 
         Args:
-            file_name (dict):
+            file_name(str):
+            window_cluster_id(int):
 
         Returns:
             dict
@@ -102,7 +229,7 @@ class Scraper(RequestScraper):
         if file_name:
             content = self._json_file(file_name)
         if not content:
-            url = 'https://api.playdraft.com/v3/window_clusters/2015/results'
+            url = f'https://api.playdraft.com/v3/window_clusters/{window_cluster_id}/results'
             content = self.get_json(url)
         return content
 
@@ -114,6 +241,18 @@ class Parser():
 
         '''
         logging.getLogger(__name__).addHandler(logging.NullHandler())
+        self._sport_ids = {1: 'nfl', 2: 'nba'}
+        self._team_ids = {
+            1: {1: 'BUF', 2: 'MIA', 3: 'NYJ', 4: 'NE',
+                5: 'CIN', 6: 'CLE', 7: 'BAL', 8: 'PIT',
+                9: 'IND', 10: 'JAC', 11: 'HOU', 12: 'TEN',
+                13: 'DEN', 14: 'LAC', 15: 'KC', 16: 'OAK',
+                17: 'DAL', 18: 'PHI', 19: 'NYG', 20: 'WAS',
+                21: 'CHI', 22: 'DET', 23: 'GB', 24: 'MIN',
+                25: 'TB', 26: 'ATL', 27: 'CAR', 28: 'NO',
+                29: 'SF', 30: 'ARI', 31: 'LA', 32: 'SEA'},
+            2: {}
+        }
 
     @staticmethod
     def _contest_result(contest):
@@ -215,24 +354,86 @@ class Parser():
         '''
         return content['average_draft_positions']
 
-    def complete_contests(self, cc, season_year):
+    def bestball_ownership(self, content):
+        '''
+
+        Args:
+            content:
+
+        Returns:
+
+        '''
+        ownership_data = []
+        bookings = content['bookings']
+        players = content['players']
+        positions = content['positions']
+        total_drafts = content['total_drafts']
+        posd = {int(pos['id']): pos['name'] for pos in positions}
+
+        combined = Parser._combine_bookings_players(bookings, players)
+        bookings_d = {combine['booking_id']:combine for combine in combined}
+
+        for owned_player in content['ownerships']:
+            player_d = Parser._merge_two(owned_player, bookings_d.get(owned_player['booking_id']))
+            player_d['position'] = posd.get(player_d['position_id'])
+            player_d['total_drafts'] = float(total_drafts)
+            player_d['ownership_pct'] = round(player_d['total'] / player_d['total_drafts'], 3)
+            ownership_data.append(player_d)
+        return ownership_data
+
+    def clustered_complete_contests(self, content):
+        '''
+        Parses clustered complete contests
+
+        Args:
+            content(dict):
+
+        Returns:
+            list: of int
+
+        '''
+        return [window['id'] for window in content['window_clusters']]
+
+    def clustered_results(self, content):
+        '''
+        Parses clustered results
+
+        Args:
+            content(dict):
+
+        Returns:
+            list: of dict
+
+        '''
+        window_cluster_dicts = []
+        wanted = ['id', 'sport_id', 'results']
+        for window_cluster in content['window_clusters']:
+            wc_dict = {k: v for k, v in window_cluster.items() if k in wanted}
+            wc_dict['sport'] = self.sport_ids(wc_dict['sport_id'])
+            if 'Regular Season' in window_cluster['header_text']:
+                wc_dict['contest_type'] = 'bestball'
+            elif 'Drafts' in window_cluster['header_text']:
+                wc_dict['contest_type'] = 'snake'
+            elif 'Auction' in window_cluster['header_text']:
+                wc_dict['contest_type'] = 'auction'
+            window_cluster_dicts.append(wc_dict)
+        return window_cluster_dicts
+
+    def complete_contests(self, content):
         '''
         Parses complete_contests resource. Does not get list of draft picks.
 
         Args:
-            cc (dict): complete contests json file
-            season_year (int): 2018, etc.
+            content (dict): complete contests json file
 
         Returns:
             list: of contest dict
 
         '''
         return [{'prize': float(dr['prize']), 'player_pool_id': dr['time_window_id'],
-                 'entry_cost': float(dr['entry_cost']),
-                 'draft_time': dr['draft_time'],
-                 'participants': dr['max_participants'],
-                 'league_id': dr['id'], 'season_year': season_year,
-                 'league_json': dr} for dr in cc['drafts']]
+                 'entry_cost': float(dr['entry_cost']), 'draft_time': dr['draft_time'],
+                 'participants': dr['max_participants'], 'league_id': dr['id'],
+                 'league_json': dr} for dr in content['drafts']]
 
     def draft_users(self, draft):
         '''
@@ -351,6 +552,33 @@ class Parser():
         '''
         contests = content['series_contests']
         return [Parser._contest_result(contest) for contest in contests]
+
+    def sport_ids(self, sport_id):
+        '''
+        Gets sport name for sport id
+
+        Args:
+            sport_id(int): 1, 2, etc.
+
+        Returns:
+            str
+
+        '''
+        return self._sport_ids.get(sport_id)
+
+    def team_ids(self, sport_id, team_id):
+        '''
+        Gets team name for team id
+
+        Args:
+            sport_id(int): 1, 2, etc.
+            team_id(int): 1, 2, etc.
+
+        Returns:
+            str
+
+        '''
+        return self._team_ids.get(sport_id, {}).get(team_id)
 
 
 if __name__ == '__main__':
