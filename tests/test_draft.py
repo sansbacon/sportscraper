@@ -1,15 +1,15 @@
 # test_draft.py
 
-import os
 import pytest
 import random
 
 from sportscraper.draft import Scraper, Parser
+from sportscraper.testconf import *
 
 
 @pytest.yield_fixture(scope='session')
 def scraper():
-    scraper = Scraper(cache_name='scraper-cache')
+    scraper = Scraper(cache_name='test-draft')
     yield scraper
 
 
@@ -29,7 +29,8 @@ def test_bestball_ownership(scraper, parser):
     Returns:
 
     '''
-    own = parser.bestball_ownership(scraper.bestball_ownership(window_cluster_id=2743))
+    own = parser.bestball_ownership(
+        scraper.bestball_ownership(window_cluster_id=window_cluster_id_curr))
     assert isinstance(own, list)
     assert isinstance(random.choice(own), dict)
 
@@ -59,9 +60,28 @@ def test_complete_contests(scraper, parser):
     Returns:
 
     '''
-    contests = parser.complete_contests(scraper.complete_contests(window_cluster_id=2743))
+    contests = parser.complete_contests(
+        scraper.complete_contests(window_cluster_id=window_cluster_id_curr))
     assert isinstance(contests, list)
     assert contests[0].get('prize') is not None
+
+
+def test_contest_results(scraper, parser):
+    '''
+
+    Args:
+        scraper:
+        parser:
+
+    Returns:
+
+    '''
+    contest_metadata, teams, users, weekly_results = parser.contest_results(
+        scraper.contest_results(contest_id=random.choice(contest_ids)))
+    assert isinstance(contest_metadata, dict)
+    assert isinstance(teams, list)
+    assert isinstance(weekly_results, list)
+    assert isinstance(users, list)
 
 
 def test_clustered_results(scraper, parser):
@@ -74,22 +94,8 @@ def test_clustered_results(scraper, parser):
     Returns:
 
     '''
-    results = parser.clustered_results(scraper.clustered_results(user_id=os.getenv('DRAFT_USER_ID')))
-    assert isinstance(results, list)
-    assert isinstance(random.choice(results), dict)
-
-
-def test_results(scraper, parser):
-    '''
-
-    Args:
-        scraper:
-        parser:
-
-    Returns:
-
-    '''
-    results = parser.results(scraper.results(window_cluster_id=2015))
+    results = parser.clustered_results(scraper.clustered_results(
+        user_id=draft_user_id))
     assert isinstance(results, list)
     assert isinstance(random.choice(results), dict)
 
@@ -104,7 +110,23 @@ def test_player_pool(scraper, parser):
     Returns:
 
     '''
-    pool = parser.player_pool(scraper.player_pool(15035), '2019-02-21')
+    pool = parser.player_pool(scraper.player_pool(player_pool_id),
+                              player_pool_date)
     assert isinstance(pool, list)
     assert isinstance(random.choice(pool), dict)
 
+
+def test_window_cluster_results(scraper, parser):
+    '''
+
+    Args:
+        scraper:
+        parser:
+
+    Returns:
+
+    '''
+    results = parser.window_cluster_results(
+                scraper.window_cluster_results(window_cluster_id=window_cluster_id))
+    assert isinstance(results, list)
+    assert isinstance(random.choice(results), dict)

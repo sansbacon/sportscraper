@@ -9,6 +9,7 @@ import hashlib
 import json
 import logging
 import os
+from pathlib import Path
 import re
 import time
 from urllib.parse import urlencode
@@ -56,12 +57,8 @@ class RequestScraper():
         if kwargs.get('cookies'):
             _s.cookies = kwargs['cookies']
         else:
-            try:
-                import cookielib
-                _s.cookies = cookielib.MozillaCookieJar()
-            except (NameError, ImportError):
-                import http.cookiejar
-                _s.cookies = http.cookiejar.MozillaCookieJar()
+            import http.cookiejar
+            _s.cookies = http.cookiejar.MozillaCookieJar()
 
         # add headers
         user_agent = ('Mozilla/5.0 (X11; Linux x86_64) '
@@ -320,7 +317,7 @@ class BrowserScraper():
                     return infile.read()
         try:
             self.browser.get(url)
-        except (InsecureCertificateException, 
+        except (InsecureCertificateException,
                 BrokenPipeError, TimeoutException):
             time.sleep(1)
             self.browser.get(url)

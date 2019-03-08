@@ -24,6 +24,7 @@ class Scraper(RequestScraper):
             **kwargs:
 
         '''
+
         headers = {
           'Accept': 'application/json, text/javascript, */*; q=0.01',
           'Accept-Encoding': 'gzip, deflate, br',
@@ -76,6 +77,51 @@ class Scraper(RequestScraper):
         except:
             return None
 
+    def adp(self, start_date, end_date, season_year,
+            participants='', entry_cost=''):
+        '''
+        Scrapes ADP dashboard
+
+        Args:
+            start_date:
+            end_date:
+            season_year:
+            participants:
+            entry_cost:
+
+        Returns:
+            dict
+
+        '''
+        url = 'https://api.playdraft.com/feeds/v2/sports/nfl//season/adp'
+
+        adp_headers = {
+            'origin': 'https://draft.com',
+            'accept-encoding': 'gzip, deflate, br',
+            'accept-language': 'en-US,en;q=0.9',
+            'user-agent': ('Mozilla/5.0 (X11; Linux x86_64) '
+                           'AppleWebKit/537.36 (KHTML, like Gecko) '
+                           'Chrome/69.0.3497.100 Safari/537.36 OPR/56.0.3051.99'),
+            'accept': '*/*',
+            'referer': 'https://draft.com/adp/',
+            'authority': 'api.playdraft.com',
+        }
+
+        params = {
+            'start_date': start_date,
+            'end_date': end_date,
+            'year': season_year,
+            'participants': participants,
+            'entry_cost': entry_cost,
+            'token': 'b44b7f89026d55cce8df379cbfc2b9e3',
+        }
+
+        headers = self.headers
+        self.session.headers.update(adp_headers)
+        content = self.get(url, params=params)
+        self.headers = headers
+        return content
+
     def bestball_ownership(self, file_name=None, window_cluster_id=None):
         '''
         Ownership data for one window cluster
@@ -92,17 +138,20 @@ class Scraper(RequestScraper):
         if file_name:
             content = Parser._json_file(file_name)
         if not content:
-            url = f'https://api.playdraft.com/v1/window_clusters/{window_cluster_id}/ownerships?tournament=false'
+            url = (f'https://api.playdraft.com/v1/window_clusters/{window_cluster_id}/'
+                  f'ownerships?tournament=false')
             content = self.get_json(url)
         return content
 
-    def bestball_ownership_csv(self, file_name=None, window_cluster_id=None):
+    def bestball_ownership_csv(self, file_name=None,
+                               window_cluster_id=None, sport=None):
         '''
-        Ownership data for one window cluster
+        Ownership data for one window cluster. Only file method works.
 
         Args:
             file_name(str):
             window_cluster_id(int):
+            sport(str):
 
         Returns:
             dict
@@ -112,7 +161,7 @@ class Scraper(RequestScraper):
         if file_name:
             content = Parser._csv_to_dict(file_name)
         if not content:
-            url = f'https://draft.com/bbo-csv/{window_cluster_id}/all/nfl/standard'
+            url = f'https://draft.com/bbo-csv/{window_cluster_id}/all/{sport}/standard'
             content = self.get(url)
         return content
 
@@ -175,6 +224,26 @@ class Scraper(RequestScraper):
             content = self.get_json(url=url)
         return content
 
+    def contest_results(self, file_name=None, contest_id=None):
+        '''
+        Complete results for one contest
+
+        Args:
+            file_name(str):
+            contest_id(str):
+
+        Returns:
+            dict
+
+        '''
+        content = None
+        if file_name:
+            content = self._json_file(file_name)
+        if not content:
+            url = f'https://api.playdraft.com/v2/series_contests/{contest_id}'
+            content = self.get_json(url=url)
+        return content
+
     def draft(self, league_id=None, file_name=None):
         '''
 
@@ -213,7 +282,7 @@ class Scraper(RequestScraper):
         else:
             return ValueError('must specify pool_id or fn')
 
-    def results(self, file_name=None, window_cluster_id=None):
+    def window_cluster_results(self, file_name=None, window_cluster_id=None):
         '''
         Results for one window cluster
 
@@ -241,6 +310,7 @@ class Parser():
 
         '''
         logging.getLogger(__name__).addHandler(logging.NullHandler())
+        self.data = {}
         self._sport_ids = {1: 'nfl', 2: 'nba'}
         self._team_ids = {
             1: {1: 'BUF', 2: 'MIA', 3: 'NYJ', 4: 'NE',
@@ -349,10 +419,12 @@ class Parser():
             content:
 
         Returns:
-            list: of dict (name, team, adp, sportradar_id, min_pick, max_pick, position)
+            list: of dict (name, team, adp, sportradar_id,
+                           min_pick, max_pick, position)
 
         '''
-        return content['average_draft_positions']
+        self.data['adp'] = content['average_draft_positions']
+        return self.data['adp']
 
     def bestball_ownership(self, content):
         '''
@@ -363,7 +435,7 @@ class Parser():
         Returns:
 
         '''
-        ownership_data = []
+        self.data['ownership_data'] = []
         bookings = content['bookings']
         players = content['players']
         positions = content['positions']
@@ -378,8 +450,8 @@ class Parser():
             player_d['position'] = posd.get(player_d['position_id'])
             player_d['total_drafts'] = float(total_drafts)
             player_d['ownership_pct'] = round(player_d['total'] / player_d['total_drafts'], 3)
-            ownership_data.append(player_d)
-        return ownership_data
+            self.data['ownership_data'].append(player_d)
+        return self.data['ownership_data']
 
     def clustered_complete_contests(self, content):
         '''
@@ -435,27 +507,44 @@ class Parser():
                  'participants': dr['max_participants'], 'league_id': dr['id'],
                  'league_json': dr} for dr in content['drafts']]
 
-    def draft_users(self, draft):
+    def contest_results(self, content):
         '''
-        Parses single draft resource into users and user_league
+        Parses detailed results from one contest
 
         Args:
-            draft (dict):
+            content(dict): parsed JSON
 
         Returns:
-            tuple: (list of dict, list of dict)
+            list: of dict
 
         '''
-        if draft.get('draft'):
-            draft = draft['draft']
-        uwanted = ['experienced', 'id', 'skill_level', 'username']
-        users = [{k: v for k, v in user.items() if k in uwanted}
-                 for user in draft['users']]
-        league_users = [{'league_id': draft['id'],
-                         'user_id': dr['user_id'],
-                         'pick_order': dr['pick_order']}
-                        for dr in draft['draft_rosters']]
-        return users, league_users
+        # root element and desired keys
+        contest = content['series_contest']
+        contest_wanted = ['id', 'participants', 'sport_id', 'entry_cost', 'prize']
+        contest_metadata = {k:v for k,v in contest.items()
+                            if k in contest_wanted}
+        for k in ['seconds_per_pick', 'salary_cap_amount', 'seconds_per_bid', 'style']:
+            contest_metadata[k] = contest['contest_type'][k]
+
+        # list of dict
+        teams_wanted = ['id', 'pick_order', 'winnings', 'rank', 'points', 'user_id']
+        teams = [{k:v for k,v in team.items() if k in teams_wanted}
+                 for team in contest['draft_rosters']]
+
+        # list of dict
+        weekly_results = []
+        for week in contest['draft_sections']:
+            for k,v in week['roster_points'].items():
+                team_week_dict = {'week_id': week['section_id'],
+                    'team_id': k, 'week_points': float(v)}
+                weekly_results.append(team_week_dict)
+
+        # list of dict
+        users_wanted = ['id', 'username', 'experienced', 'skill_level']
+        users = [{k: v for k, v in user.items() if k in users_wanted}
+                 for user in contest['users']]
+
+        return contest_metadata, teams, users, weekly_results
 
     def draft_picks(self, draft):
         '''
@@ -506,6 +595,28 @@ class Parser():
                 picks.append(pickc)
         return picks
 
+    def draft_users(self, draft):
+        '''
+        Parses single draft resource into users and user_league
+
+        Args:
+            draft (dict):
+
+        Returns:
+            tuple: (list of dict, list of dict)
+
+        '''
+        if draft.get('draft'):
+            draft = draft['draft']
+        uwanted = ['experienced', 'id', 'skill_level', 'username']
+        users = [{k: v for k, v in user.items() if k in uwanted}
+                 for user in draft['users']]
+        league_users = [{'league_id': draft['id'],
+                         'user_id': dr['user_id'],
+                         'pick_order': dr['pick_order']}
+                        for dr in draft['draft_rosters']]
+        return users, league_users
+
     def player_pool(self, pp, pool_date):
         '''
         Parses player_pool resource
@@ -540,19 +651,6 @@ class Parser():
             players.append({k: v for k, v in pl.items() if k in ppwanted})
         return players
 
-    def results(self, content):
-        '''
-
-        Args:
-            content(dict): parsed JSON
-
-        Returns:
-            list: of dict
-
-        '''
-        contests = content['series_contests']
-        return [Parser._contest_result(contest) for contest in contests]
-
     def sport_ids(self, sport_id):
         '''
         Gets sport name for sport id
@@ -579,6 +677,20 @@ class Parser():
 
         '''
         return self._team_ids.get(sport_id, {}).get(team_id)
+
+    def window_cluster_results(self, content):
+        '''
+        Gets results for one window cluster. Less granular than contest results.
+
+        Args:
+            content(dict): parsed JSON
+
+        Returns:
+            list: of dict
+
+        '''
+        contests = content['series_contests']
+        return [Parser._contest_result(contest) for contest in contests]
 
 
 if __name__ == '__main__':
