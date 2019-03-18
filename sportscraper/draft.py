@@ -580,7 +580,7 @@ class Parser():
 
         # picks
         rosters = draft['draft_rosters']
-        pkwanted = ['booking_id', 'id', 'draft_roster_id', 'pick_number', 'slot_id']
+        pkwanted = ['booking_id', 'id', 'draft_roster_id', 'pick_number', 'slot_id', 'source']
         for t in rosters:
             for pick in [{k: v for k, v in pk.items() if k in pkwanted} for pk in t['picks']]:
                 pick['user_id'] = t['user_id']
@@ -691,6 +691,69 @@ class Parser():
         '''
         contests = content['series_contests']
         return [Parser._contest_result(contest) for contest in contests]
+
+
+class Agent():
+    '''
+    Combines common scraping/parsing functions
+
+    '''
+    def __init__(self, cache_name='DRAFT-agent'):
+        '''
+
+        '''
+        logging.getLogger(__name__).addHandler(logging.NullHandler())
+        self.s = Scraper(cache_name=cache_name)
+        self.p = Parser()
+
+    def bestball_leagues(self):
+        '''
+        Gets bestball leagues, auto-determines cluster
+
+        Returns:
+            list: of dict
+
+        '''
+        try:
+            content = self.s.clustered_complete_contests()
+            bestball_cluster_id = [cl['id'] for cl in content['window_clusters']
+                               if 'Best Ball' in cl['header_text']][0]
+            content = self.s.complete_contests(window_cluster_id=bestball_cluster_id)
+            return self.p.complete_contests(content)
+        except IndexError as ie:
+            logging.exception('no bestball leagues available')
+            return None
+
+    def draft(self, league_id):
+        '''
+
+        Args:
+            league_id(str):
+
+        Returns:
+            picks, users, user_league
+
+        '''
+        content = self.s.draft(league_id=league_id)
+        users, user_league = self.p.draft_users(content)
+        picks = self.p.draft_picks(content)
+        return picks, users, user_league
+
+
+    def player_pool(self, pool_id, pool_date):
+        '''
+        Gets player pool
+
+        Args:
+            pool_id(int): player pool id
+            pool_date(str): in '%Y-%m-%d' format
+
+        Returns:
+            list: of dict
+
+        '''
+        content = self.s.player_pool(pool_id=pool_id)
+        return self.p.player_pool(content, pool_date)
 
 
 if __name__ == '__main__':

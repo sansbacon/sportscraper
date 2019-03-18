@@ -13,7 +13,7 @@ from sportscraper.scraper import RequestScraper
 
 class Scraper(RequestScraper):
 
-    def __init__(self, authfn, sport, game_key=None, yahoo_season=None,
+    def __init__(self, authfn, sport, yahoo_season, game_key=None,
                  response_format='xml', cache_name='yahoo-scraper', **kwargs):
         '''
         Initialize scraper object
@@ -36,24 +36,19 @@ class Scraper(RequestScraper):
         '''
         logging.getLogger(__name__).addHandler(logging.NullHandler())
         RequestScraper.__init__(self, cache_name=cache_name, **kwargs)
+
         self.authfn = authfn
         self.auth_uri = 'https://api.login.yahoo.com/oauth2/request_auth'
         self.response_format = {'format': response_format}
         self.sport = sport
+        self.yahoo_season = yahoo_season
+        self.token_uri = 'https://api.login.yahoo.com/oauth2/get_token'
         if game_key:
             self.game_key = game_key
         else:
             self.game_key = self._game_key()
-        if yahoo_season:
-            self.yahoo_season = yahoo_season
-        else:
-            self.yahoo_season = self._yahoo_season(yahoo_season)
-        self.token_uri = 'https://api.login.yahoo.com/oauth2/get_token'
-
-        # run a couple of methods
         self._load_credentials()
-        self.yahoo_season = self._yahoo_season(yahoo_season)
-
+        
     def _filtstr(self, filters):
         '''
         Creates filter string for collection URL
@@ -776,6 +771,10 @@ class Parser():
     '''
     def __init__(self):
         logging.getLogger(__name__).addHandler(logging.NullHandler())
+        self._stat_ids = {
+          0: 'games_played', 5: 'fgp', 7: 'ftm',
+          10: 'tpm', 12: 'pts', 15: 'reb', 16: 'ast',
+          17: 'stl', 18: 'blk', 19: 'tov'}
 
     @staticmethod
     def _strip_ns(content):
@@ -802,6 +801,13 @@ class Parser():
             list: of dict
         '''
 
+    def _stat_name(self, stat_id):
+        '''
+        Yahoo standings use stat id rather than name
+
+        '''
+        return self._stat_ids.get(stat_id)
+          
     def game(self, content):
         '''
         Parses game resource
@@ -810,12 +816,46 @@ class Parser():
             content (str):
 
         Returns:
-            dict
+            list: of dict
 
         '''
         root = ET.fromstring(Parser._strip_ns(content))
         return [{child.tag: child.text for child in game} for game in root.iter('game')]
 
+    def league_standings(self, content):
+        '''
+        Parses league with standings subresource
+
+        Args:
+            content(str): XML string
+            
+        Returns:
+            list: of dict
+            
+        '''
+        vals= []
+        root = ET.fromstring(Parser._strip_ns(content))
+        for team in root.findall(".//standings/teams/team"):
+            team_d = {'team_key': team.find('team_key').text,
+                      'team_name': team.find('name').text}
+            team_standings = team.find('team_standings')
+            team_d['rank'] = team_standings.find('rank').text
+            team_d['points_for'] = team_standings.find('points_for').text
+            for stat in team.find('.//team_stats/stats'):
+                stat_id = int(stat.find('stat_id').text)
+                stat_name = self._stat_name(stat_id)
+                if stat_name:
+                    val = stat.find('value').text               
+                    team_d[stat_name] = val
+            for stat in team.find('.//team_points/stats'):
+                stat_id = int(stat.find('stat_id').text)
+                stat_name = self._stat_name(stat_id)
+                if stat_name:
+                    val = stat.find('value').text               
+                    team_d[f'{stat_name}_pts'] = val
+            vals.append(team_d)
+        return vals
+        
     def leagues(self, content):
         '''
         Parses leagues collection
@@ -824,12 +864,35 @@ class Parser():
             content (str): XML
 
         Returns:
-            dict
+            list: of dict
 
         '''
         root = ET.fromstring(Parser._strip_ns(content))
         return [{child.tag: child.text for child in league} for league in root.iter('league')]
 
+    def user_leagues(self, content, game_key):
+        '''
+        Parses user collection with leagues subresource
 
+        Args:
+            content(str): XML
+            game_key(int): e.g. 385
+
+        Returns:
+            list: of dict
+
+        '''
+        root = ET.fromstring(Parser._strip_ns(content))
+        vals = []
+        for node in root.findall(".//game"):
+            if node.find('game_key').text == str(game_key):
+                for league in node.findall('.//league'):
+                   vals.append({child.tag: child.text for
+                                child in league}) 
+        return vals  
+
+        
+        
+        
 if __name__ == '__main__':
     pass
