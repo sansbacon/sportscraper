@@ -9,7 +9,7 @@ from sportscraper.yahoo import Scraper
 
 @pytest.yield_fixture(scope='session')
 def scraper():
-    scraper = Scraper(authfn=str(Path.home() / 'auth.json'),
+    scraper = Scraper(authfn=str(Path.home() / '.auth.json'),
                       sport='nba',
                       game_key=380,
                       yahoo_season=2018)

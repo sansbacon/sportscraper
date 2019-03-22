@@ -25,6 +25,7 @@ from .dates import today
 
 class BScraper(BrowserScraper):
     '''
+    Uses browser to access fantasylabs resources
 
     '''
     def model(self, sport, datestr=None, model_id='1950741'):
@@ -43,9 +44,10 @@ class BScraper(BrowserScraper):
 
         if sport == 'nba':
             referrer_url = 'https://www.fantasylabs.com/nba/player-models/'
-            model_url = f'https://www.fantasylabs.com/api/playermodel/2/{datestr}/?modelId={model_id}&projOnly=true'
+            model_url = (f'https://www.fantasylabs.com/api/playermodel/2/'
+                         f'{datestr}/?modelId={model_id}&projOnly=true')
             self.get(referrer_url)
-            sleep(randint(1,3) * random())
+            sleep(randint(1, 3) * random())
             return self.get_json(model_url)
         else:
             raise ValueError('sports other than NBA not implemented yet')
@@ -53,6 +55,7 @@ class BScraper(BrowserScraper):
 
 class Parser():
     '''
+    Parses fantasylabs JSON resources
 
     '''
     def __init__(self):
@@ -99,19 +102,53 @@ class Parser():
                 sp in site_players]
 
 
-
 class Agent():
     '''
+    Combines scraper and parser for common tasks
 
     '''
     def __init__(self, profile, sport):
         '''
+        Creates Agent object
+
+        Args:
+            profile(str): filename of profile
+            sport(str): 'nba', 'nfl', etc.
+
+        Returns:
+            Agent
 
         '''
         logging.getLogger(__name__).addHandler(logging.NullHandler())
-        self.s = BScraper(profile=profile)
-        self.p = Parser()
+        self.scraper = BScraper(profile=profile)
+        self.parser = Parser()
         self.sport = sport
+
+    def matchups(self, datestr=None):
+        '''
+        Gets matchups from one day
+
+        Args:
+            datestr(str): string for date of model
+
+        Returns:
+            list: of dict
+
+        '''
+        pass
+
+    def model(self, datestr=None):
+        '''
+        Gets model from one day
+
+        Args:
+            datestr(str): string for date of model
+
+        Returns:
+            list: of dict
+
+        '''
+        pass
 
     def site_players(self, site='dk', datestr=None):
         '''
@@ -125,8 +162,8 @@ class Agent():
             list: of dict
 
         '''
-        model = self.s.model(self.sport, datestr)
-        return self.p.site_players(model, site)
+        model = self.scraper.model(self.sport, datestr)
+        return self.parser.site_players(model, site)
 
 
 if __name__ == '__main__':
