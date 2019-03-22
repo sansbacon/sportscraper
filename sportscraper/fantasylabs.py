@@ -20,7 +20,7 @@ from random import random, randint
 from time import sleep
 
 from sportscraper import BrowserScraper
-from nfl.dates import today
+from .dates import today
 
 
 class BScraper(BrowserScraper):

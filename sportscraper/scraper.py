@@ -9,7 +9,7 @@ import hashlib
 import json
 import logging
 import os
-from pathlib import Path
+import psutil
 import re
 import time
 from urllib.parse import urlencode
@@ -20,13 +20,12 @@ try:
     from pyvirtualdisplay import Display
 except ImportError:
     pass
-#try:
-#    from seleniumwire import webdriver
-#except ImportError:
+
 try:
     from selenium import webdriver
 except ImportError:
     pass
+
 try:
     from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
     from selenium.webdriver.remote.errorhandler import WebDriverException

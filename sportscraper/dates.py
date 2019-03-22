@@ -8,8 +8,6 @@ import datetime
 import logging
 import re
 
-from past.builtins import basestring
-
 
 def convert_format(datestr, site):
     '''
@@ -157,7 +155,7 @@ def subtract_datestr(date1, date2):
         int: number of days between dates
 
     '''
-    if isinstance(date1, basestring):
+    if isinstance(date1, str):
         delta = strtodate(date1) - strtodate(date2)
     else:
         delta = date1 - date2

@@ -9,7 +9,6 @@ import collections
 import csv
 import json
 import logging
-from lxml import etree, html
 import os
 import random
 from functools import wraps
