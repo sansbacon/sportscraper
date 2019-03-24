@@ -27,8 +27,6 @@ class Scraper(RequestScraper):
 
         headers = {
           'Accept': 'application/json, text/javascript, */*; q=0.01',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Accept-Language': 'en-US,en;q=0.9,ar;q=0.8',
           'Connection': 'keep-alive',
           'DNT': '1',
           'Origin': 'https://draft.com',
@@ -39,6 +37,20 @@ class Scraper(RequestScraper):
           'X-User-Auth-Id': os.getenv('DRAFT_AUTH'),
           'X-User-Token': os.getenv('DRAFT_TOKEN')}
         super().__init__(headers=headers, **kwargs)
+
+    @staticmethod
+    def _bookings_to_json(bookings):
+        '''
+        Converts list of bookings to string
+
+        Args:
+            bookings(list): of int
+
+        Returns:
+            str
+
+        '''
+        return json.dumps([str(booking) for booking in bookings])
 
     @staticmethod
     def _csv_to_dict(file_name):
@@ -96,13 +108,6 @@ class Scraper(RequestScraper):
         url = 'https://api.playdraft.com/feeds/v2/sports/nfl//season/adp'
 
         adp_headers = {
-            'origin': 'https://draft.com',
-            'accept-encoding': 'gzip, deflate, br',
-            'accept-language': 'en-US,en;q=0.9',
-            'user-agent': ('Mozilla/5.0 (X11; Linux x86_64) '
-                           'AppleWebKit/537.36 (KHTML, like Gecko) '
-                           'Chrome/69.0.3497.100 Safari/537.36 OPR/56.0.3051.99'),
-            'accept': '*/*',
             'referer': 'https://draft.com/adp/',
             'authority': 'api.playdraft.com',
         }
@@ -116,10 +121,7 @@ class Scraper(RequestScraper):
             'token': 'b44b7f89026d55cce8df379cbfc2b9e3',
         }
 
-        headers = self.headers
-        self.session.headers.update(adp_headers)
-        content = self.get(url, params=params)
-        self.headers = headers
+        content = self.get(url, params=params, headers=adp_headers)
         return content
 
     def bestball_ownership(self, file_name=None, window_cluster_id=None):
@@ -255,13 +257,38 @@ class Scraper(RequestScraper):
             dict
 
         '''
+        headers = {
+            'x-client-sha': 'production',
+            'auth-login-token': 'NA',
+            'x-user-auth-id': os.getenv('DRAFT_AUTH'),
+            'x-build-number': '0',
+            'x-user-token': os.getenv('DRAFT_TOKEN'),
+            'authority': 'api.playdraft.com',
+            'referer': f'https://draft.com/draft/{league_id}/',
+            'x-client-type': 'web',
+            'user-auth-token': os.getenv('DRAFT_TOKEN'),
+            'if-none-match': 'W/"3beb6c9474cc2303bb9ef39a22229028"',
+        }
+
         if file_name:
             return self._json_file(file_name)
         elif league_id:
-            url = 'https://api.playdraft.com/v3/drafts/{}'
-            return self.get_json(url=url.format(league_id))
+            url = f'https://api.playdraft.com/v3/drafts/{league_id}'
+            return self.get_json(url=url, headers=headers)
         else:
             return ValueError('must specify league_id or file_name')
+
+    def get_queue(self, league_id):
+        '''
+
+        Args:
+            league_id(str):
+
+        Returns:
+            dict: parsed JSON
+
+        '''
+        pass
 
     def player_pool(self, pool_id=None, file_name=None):
         '''
@@ -281,6 +308,67 @@ class Scraper(RequestScraper):
             return self.get_json(url.format(pool_id))
         else:
             return ValueError('must specify pool_id or fn')
+
+    def set_queue(self, league_id, bookings):
+        '''
+        Sets the queue in DRAFT.com drafts
+
+
+        Args:
+            league_id(str):
+            bookings(list): of int
+
+        Returns:
+            int: HTTP status code
+
+        '''
+        headers = {
+            'x-client-sha': 'production',
+            'auth-login-token': 'NA',
+            'x-user-auth-id': os.getenv('DRAFT_AUTH'),
+            'x-build-number': '0',
+            'x-user-token': os.getenv('DRAFT_TOKEN'),
+            'authority': 'api.playdraft.com',
+            'referer': f'https://draft.com/draft/{league_id}/',
+            'x-client-type': 'web',
+            'user-auth-token': os.getenv('DRAFT_TOKEN'),
+        }
+
+        url = f'https://api.playdraft.com/v2/drafts/{league_id}/queue'
+        data = Scraper._bookings_to_json(bookings)
+        response = self.post(url, data=data, headers=headers)
+        return response.status_code
+
+    def set_rankings(self, player_pool_id, bookings):
+        '''
+        Sets the player rankings in DRAFT.com drafts
+
+
+        Args:
+            player_pool_id(int):
+            bookings(list): of int
+
+        Returns:
+            int: HTTP status code
+
+        '''
+        headers = {
+            'x-client-sha': os.getenv('DRAFT_SHA'),
+            'auth-login-token': 'NA',
+            'x-user-auth-id': os.getenv('DRAFT_AUTH'),
+            'x-build-number': '0',
+            'x-user-token': os.getenv('DRAFT_TOKEN'),
+            'authority': 'api.playdraft.com',
+            'referer': f'https://draft.com/upcoming',
+            'x-client-type': 'web',
+            'user-auth-token': os.getenv('DRAFT_TOKEN'),
+        }
+
+        url = 'https://api.playdraft.com/v1/draft_rankings'
+        data = {'bookings': Scraper._bookings_to_json(bookings),
+                'time_window_id': player_pool_id}
+        response = self.post(url, data=data, headers=headers)
+        return response.status_code
 
     def window_cluster_results(self, file_name=None, window_cluster_id=None):
         '''

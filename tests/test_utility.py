@@ -29,7 +29,7 @@ def test_isfloat():
 
 def test_isint():
     x = 3.0
-    assert isint(x)
+    assert not isint(x)
     x = 'abc'
     assert not isint(x)
 
@@ -45,6 +45,11 @@ def test_rand_dictitem():
     rand_item = rand_dictitem(d1)
     assert isinstance(rand_item[0], str)
     assert isinstance(rand_item[1], int)
+
+
+def test_random_string():
+    string_length = random.randint(10, 32)
+    assert string_length == len(random_string(string_length))
 
 
 def test_sample_dict():

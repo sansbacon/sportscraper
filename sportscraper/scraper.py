@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import psutil
+import random
 import re
 import time
 from urllib.parse import urlencode
@@ -32,6 +33,20 @@ try:
     from selenium.common.exceptions import TimeoutException, InsecureCertificateException
 except ImportError:
     pass
+
+from .utility import random_string
+
+
+USER_AGENTS = (('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/42.0.2311.135 Safari/537.36 Edge/12.246'),
+               ('Mozilla/5.0 (X11; CrOS x86_64 8172.45.0) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/51.0.2704.64 Safari/537.36'),
+               ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_2) AppleWebKit/601.3.9 '
+                '(KHTML, like Gecko) Version/9.0.2 Safari/601.3.9'),
+               ('Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/47.0.2526.111 Safari/537.36)'),
+               ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, '
+                'like Gecko) Chrome/55.0.2883.87 Safari/537.36'))
 
 
 class RequestScraper():
@@ -60,11 +75,11 @@ class RequestScraper():
             _s.cookies = http.cookiejar.MozillaCookieJar()
 
         # add headers
-        user_agent = ('Mozilla/5.0 (X11; Linux x86_64) '
-                      'AppleWebKit/537.36 (KHTML, '
-                      'like Gecko) Chrome/55.0.2883.87 '
-                      'Safari/537.36')
-        _s.headers = {'User-Agent': user_agent}
+        default_headers = {'User-Agent': random.choice(USER_AGENTS),
+                           'accept-encoding': 'gzip, deflate, br',
+                           'accept-language': 'en-US,en;q=0.9',
+                           'accept': 'application/json, text/plain, */*'}
+        _s.headers.update(default_headers)
         if kwargs.get('headers'):
             _s.headers.update(kwargs['headers'])
 
@@ -73,8 +88,13 @@ class RequestScraper():
             _s.proxies = kwargs['proxies']
 
         # add cache
-        if '/' not in kwargs.get('cache_name', ''):
+        if not kwargs.get('cache_name'):
+            self.cache_name = os.path.join('/tmp', random_string(32))
+        elif '/' not in kwargs.get('cache_name', ''):
             self.cache_name = os.path.join('/tmp', kwargs['cache_name'])
+        else:
+            self.cache_name = kwargs.get('cache_name')
+
         try:
             from cachecontrol import CacheControlAdapter
             from cachecontrol.heuristics import ExpiresAfter
@@ -82,11 +102,9 @@ class RequestScraper():
             _s.mount(
                 'http://',
                 CacheControlAdapter(
-                    cache=FileCache(
-                        self.cache_name),
+                    cache=FileCache(self.cache_name),
                     cache_etags=False,
-                    heuristic=ExpiresAfter(
-                        hours=self.expire_hours)))
+                    heuristic=ExpiresAfter(hours=self.expire_hours)))
         except ImportError:
             try:
                 import requests_cache
@@ -220,8 +238,7 @@ class RequestScraper():
             logging.exception('could not get over tor %s', url)
             return self.get(url)
 
-    def post(self, url, data,
-             headers=None, params=None):
+    def post(self, url, data, headers=None, params=None):
         '''
 
         Args:

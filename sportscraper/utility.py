@@ -11,10 +11,11 @@ import json
 import logging
 import os
 import random
+import string
 from urllib.parse import urlsplit, parse_qs, urlencode, quote
 
 
-logger = logging.getLogger(__name__)
+LOGGER = logging.getLogger(__name__)
 
 
 def csv_to_dict(filename):
@@ -33,58 +34,58 @@ def csv_to_dict(filename):
             yield {k: v for k, v in row.items()}
 
 
-def digits(s):
+def digits(numstr):
     '''
     Removes non-numeric characters from a string
 
     Args:
-        s (str): string with non-numeric characters
+        numstr (str): string with non-numeric characters
 
     Returns:
         str
 
     '''
-    return ''.join(ch for ch in s if ch.isdigit())
+    return ''.join(ch for ch in numstr if ch.isdigit())
 
 
-def flatten(d):
+def flatten(nested_dict):
     '''
     Flattens nested dict into single dict
 
     Args:
-        d (dict): The original dict
+        nested_dict (dict): The original dict
 
     Returns:
         dict: nested dict flattened into dict
 
     '''
     items = []
-    for k, v in d.items():
-        if isinstance(v, collections.MutableMapping):
-            items.extend(flatten(v).items())
+    for key, val in nested_dict.items():
+        if isinstance(val, collections.MutableMapping):
+            items.extend(flatten(val).items())
         else:
-            items.append((k, v))
+            items.append((key, val))
     return dict(items)
 
 
-def flatten_list(l):
+def flatten_list(nested_list):
     '''
     Flattens list of lists into list
 
     Args:
-        l (list): original list of lists
+        nested_list (list): original list of lists
 
     Returns:
         list
 
     '''
     try:
-        return [item for sublist in l for item in sublist]
+        return [item for sublist in nested_list for item in sublist]
     except TypeError:
-        return l
+        return nested_list
 
 
-def isfloat(x):
+def isfloat(val):
     '''
     Tests if conversion to float succeeds
 
@@ -94,15 +95,16 @@ def isfloat(x):
     Returns:
         boolean: True if can convert to float, False if cannot.
 
+    TODO: this is broken
     '''
     try:
-        float_x = float(x)
+        _ = float(val)
         return True
     except ValueError:
         return False
 
 
-def isint(x):
+def isint(val):
     '''
     Tests if value is integer
 
@@ -112,11 +114,12 @@ def isint(x):
     Returns:
         boolean: True if int, False if not.
 
+    TODO: this is broken
     '''
     try:
-        a = float(x)
-        b = int(a)
-        return a == b
+        val_float = float(val)
+        val_int = int()
+        return val_float == val_int
     except ValueError:
         return False
 
@@ -139,24 +142,24 @@ def json_to_dict(json_fname):
         raise ValueError('{0} does not exist'.format(json_fname))
 
 
-def merge_two(d1, d2):
+def merge_two(dict1, dict2):
     '''
     Merges two dictionaries into one. Second dict will overwrite values in first.
 
     Args:
-        d1 (dict): first dictionary
-        d2 (dict): second dictionary
+        dict1 (dict): first dictionary
+        dict2 (dict): second dictionary
 
     Returns:
         dict: A merged dictionary
 
     '''
-    context = d1.copy()
-    context.update(d2)
+    context = dict1.copy()
+    context.update(dict2)
     return context
 
 
-def rand_dictitem(d):
+def rand_dictitem(dict_to_sample):
     '''
     Gets random item from dict
 
@@ -167,22 +170,22 @@ def rand_dictitem(d):
         tuple: dict key and value
 
     '''
-    k = random.choice(list(d.keys()))
-    return (k, d[k])
+    k = random.choice(list(dict_to_sample.keys()))
+    return (k, dict_to_sample[k])
 
 
-def dict_to_qs(d):
+def dict_to_qs(dict_to_convert):
     '''
     Converts dict into query string for url
 
     Args:
-        dict
+        dict_to_convert(dict)
 
     Returns:
         str
 
     '''
-    return urlencode(d)
+    return urlencode(dict_to_convert)
 
 
 def qs_to_dict(url):
@@ -197,8 +200,25 @@ def qs_to_dict(url):
 
     '''
     qsdata = urlsplit(url).query
-    return dict((k, v if len(v) > 1 else v[0])
-                for k, v in parse_qs(qsdata).items())
+    return dict((key, val if len(val) > 1 else val[0])
+                for key, val in parse_qs(qsdata).items())
+
+
+def random_string(string_length):
+    '''
+    Generates random string of specified length
+
+    Args:
+        string_length(int):
+
+    Returns:
+        str
+
+    '''
+    if string_length > 32:
+        string_length = 32
+    return ''.join([random.choice(string.ascii_letters + string.digits)
+                    for _ in range(string_length)])
 
 
 def save_csv(data, csv_fname, fieldnames, sep=';'):
@@ -223,33 +243,34 @@ def save_csv(data, csv_fname, fieldnames, sep=';'):
         logging.exception('could not save csv file')
 
 
-def sample_dict(d, n=1):
+def sample_dict(dict_to_sample, size=1):
     '''
     Gets random sample of dictionary
 
     Args:
-        d(dict):
+        dict_to_sample(dict):
+        size(int): size of sample
 
     Returns:
         dict
 
     '''
-    keys = list(d.keys())
-    return {k: d[k] for k in random.sample(keys, n)}
+    keys = list(dict_to_sample.keys())
+    return {k: dict_to_sample[k] for k in random.sample(keys, size)}
 
 
-def url_quote(s):
+def url_quote(str_to_quote):
     '''
     Python 3 url quoting
 
     Args:
-        s (str): string to quote
+        str_to_quote (str): string to quote
 
     Returns:
         str: URL quoted string
 
     '''
-    return quote(s)
+    return quote(str_to_quote)
 
 
 def valornone(val):
@@ -263,8 +284,7 @@ def valornone(val):
     '''
     if val == '':
         return None
-    else:
-        return val
+    return val
 
 
 if __name__ == '__main__':

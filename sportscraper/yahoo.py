@@ -1,4 +1,5 @@
 # yahoo.py
+# scraper / parser for Yahoo fantasy sports API
 
 import base64
 import datetime
@@ -21,14 +22,10 @@ class Scraper(RequestScraper):
         Args:
             authfn (str): path of auth.json file
             sport (str):
-            game_key (str):
             yahoo_season (int): '2017-18' season is 2017
+            game_key (str):
             response_format(str): 'json' or 'xml'
-            headers (dict): dict of headers
-            cookies (obj): cookies object
             cache_name (str):
-            expire_hours (int): hours to keep in cache
-            as_string (bool): false -> returns parsed json, true -> returns string
 
         Returns:
             YahooFantasyScraper
@@ -43,12 +40,13 @@ class Scraper(RequestScraper):
         self.sport = sport
         self.yahoo_season = yahoo_season
         self.token_uri = 'https://api.login.yahoo.com/oauth2/get_token'
+
         if game_key:
             self.game_key = game_key
         else:
             self.game_key = self._game_key()
         self._load_credentials()
-        
+
     def _filtstr(self, filters):
         '''
         Creates filter string for collection URL
@@ -440,6 +438,23 @@ class Scraper(RequestScraper):
         return self.user_subresources
 
     # methods
+    def _url(self, resource):
+        '''
+        Base URLS for resources
+
+        Args:
+            resource(str):
+
+        Returns:
+            str
+
+        '''
+        return {
+            'game': 'https://fantasysports.yahooapis.com/fantasy/v2/game',
+            'league': 'https://fantasysports.yahooapis.com/fantasy/v2/league',
+            'player': 'https://fantasysports.yahooapis.com/fantasy/v2/player',
+        }.get(resource)
+
     def game(self, subresource='metadata', keys=None):
         '''
         Gets game resource
@@ -451,7 +466,7 @@ class Scraper(RequestScraper):
             keys (list):
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         if subresource not in self.game_subresources:
@@ -480,7 +495,7 @@ class Scraper(RequestScraper):
             keys (list):
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         # games adds an additional subresource for teams
@@ -512,13 +527,35 @@ class Scraper(RequestScraper):
             subresource (str): metadata, settings, standings, scoreboard, etc.
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         if subresource not in self.league_subresources:
             raise ValueError('invalid subresource')
         url = 'https://fantasysports.yahooapis.com/fantasy/v2/league/{}/{}'
         return self.query(url.format(self._league_key(league_id), subresource))
+
+    def league_free_agents(self, league_id, start=0, subresource='players',
+                           status='A', sort='AR', sort_type='lastmonth'):
+        '''
+        Gets league free agents
+
+        Args:
+            league_id (int): id for your league
+            start(int): offset (returns 25 at a time)
+            subresource (str): metadata, settings, standings, scoreboard, etc.
+            status(str): 'A', 'FA', 'T', etc.
+            sort(str): 'OR', 'AR', stat_code, etc.
+            sort_type(str): 'lastmonth', etc.
+
+        Returns:
+            str: XML
+
+        '''
+        league_key = self._league_key(league_id)
+        url = (f'{self._url("league")}/{league_key}/'
+               f'{subresource};status={status};sort={sort};sort_type={sort_type};start={start}')
+        return self.query(url)
 
     def leagues(self, league_keys, subresource='metadata'):
         '''
@@ -530,7 +567,7 @@ class Scraper(RequestScraper):
             subresource (str): default 'metadata'
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         # games adds an additional subresource for teams
@@ -549,13 +586,31 @@ class Scraper(RequestScraper):
             player_key (str): {game_key}.p.{player_id}
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         if subresource not in self.player_subresources:
             raise ValueError('invalid player subresource')
         url = 'https://fantasysports.yahooapis.com/fantasy/v2/player/{}/{}'
         return self.query(url.format(player_key, subresource))
+
+    def player_stats(self, league_id, player_keys):
+        '''
+
+        Args:
+            league_id:
+            player_keys:
+
+        Returns:
+            str: XML
+
+        TODO: flexible way to specify filters
+
+        '''
+        league_key = self._league_key(league_id)
+        playerstr = ','.join(player_keys)
+        url = (f'{self._url("league")}/{league_key}/players;player_keys={playerstr}/stats')
+        return self.query(url)
 
     def players(self, league_id=None, league_ids=None, team_key=None, team_keys=None,
                 player_keys=None, subresource='metadata', filters=None):
@@ -572,7 +627,7 @@ class Scraper(RequestScraper):
             filters (dict): default None
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         # construct the URL from the relevant id or key
@@ -630,7 +685,7 @@ class Scraper(RequestScraper):
             roster_date (str): in YYYY-mm-dd format
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         if subresource not in self.roster_subresources:
@@ -651,7 +706,7 @@ class Scraper(RequestScraper):
             subresource (str):
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         if subresource not in self.team_subresources:
@@ -669,7 +724,7 @@ class Scraper(RequestScraper):
             subresource (str): default 'metadata'
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         if subresource not in self.teams_subresources:
@@ -695,7 +750,7 @@ class Scraper(RequestScraper):
             subresource (str):
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         if subresource not in self.transaction_subresources:
@@ -713,7 +768,7 @@ class Scraper(RequestScraper):
             filters (dict):
 
         Returns:
-            dict: parsed json
+            str: XML
 
         '''
         if subresource not in self.transactions_subresources:
@@ -807,7 +862,7 @@ class Parser():
 
         '''
         return self._stat_ids.get(stat_id)
-          
+
     def game(self, content):
         '''
         Parses game resource
@@ -822,16 +877,38 @@ class Parser():
         root = ET.fromstring(Parser._strip_ns(content))
         return [{child.tag: child.text for child in game} for game in root.iter('game')]
 
+    def league_free_agents(self, content):
+        '''
+        Parses league with players subresource
+
+        Args:
+            content(str): XML string
+
+        Returns:
+            list: of dict (player_key, player_name, eligible_postiions, team)
+
+        '''
+        vals= []
+        root = ET.fromstring(Parser._strip_ns(content))
+        for player in root.findall(".//player"):
+            player_d = {'player_key': player.find('player_key').text,
+                        'player_name': player.find('name').find('full').text}
+            positions = [elpos for elpos in player.find('eligible_positions').findall('position')]
+            player_d['eligible_positions'] = ', '.join([pos.text for pos in positions])
+            player_d['team'] = player.find('editorial_team_abbr').text.upper()
+            vals.append(player_d)
+        return vals
+
     def league_standings(self, content):
         '''
         Parses league with standings subresource
 
         Args:
             content(str): XML string
-            
+
         Returns:
             list: of dict
-            
+
         '''
         vals= []
         root = ET.fromstring(Parser._strip_ns(content))
@@ -845,17 +922,17 @@ class Parser():
                 stat_id = int(stat.find('stat_id').text)
                 stat_name = self._stat_name(stat_id)
                 if stat_name:
-                    val = stat.find('value').text               
+                    val = stat.find('value').text
                     team_d[stat_name] = val
             for stat in team.find('.//team_points/stats'):
                 stat_id = int(stat.find('stat_id').text)
                 stat_name = self._stat_name(stat_id)
                 if stat_name:
-                    val = stat.find('value').text               
+                    val = stat.find('value').text
                     team_d[f'{stat_name}_pts'] = val
             vals.append(team_d)
         return vals
-        
+
     def leagues(self, content):
         '''
         Parses leagues collection
@@ -869,6 +946,34 @@ class Parser():
         '''
         root = ET.fromstring(Parser._strip_ns(content))
         return [{child.tag: child.text for child in league} for league in root.iter('league')]
+
+    def player_stats(self, content):
+        '''
+        Parses players with stats subresource
+
+        Args:
+            content(str): XML string
+
+        Returns:
+            list: of dict
+
+        '''
+        vals= []
+        root = ET.fromstring(Parser._strip_ns(content))
+        for player in root.findall(".//player"):
+            player_d = {'player_key': player.find('player_key').text,
+                        'player_name': player.find('name').find('full').text}
+            positions = [elpos for elpos in player.find('eligible_positions').findall('position')]
+            player_d['eligible_positions'] = ', '.join([pos.text for pos in positions])
+            player_d['team'] = player.find('editorial_team_abbr').text.upper()
+            for stat in player.find('.//player_stats/stats'):
+                stat_id = int(stat.find('stat_id').text)
+                stat_name = self._stat_name(stat_id)
+                if stat_name:
+                    val = stat.find('value').text
+                    player_d[stat_name] = val
+            vals.append(player_d)
+        return vals
 
     def user_leagues(self, content, game_key):
         '''
@@ -888,11 +993,11 @@ class Parser():
             if node.find('game_key').text == str(game_key):
                 for league in node.findall('.//league'):
                    vals.append({child.tag: child.text for
-                                child in league}) 
-        return vals  
+                                child in league})
+        return vals
 
-        
-        
-        
+
+
+
 if __name__ == '__main__':
     pass
