@@ -10,7 +10,7 @@ import re
 
 
 def convert_format(datestr, site):
-    '''
+    """
     Converts string from one date format to another
 
     Args:
@@ -20,7 +20,7 @@ def convert_format(datestr, site):
     Returns:
         str
 
-    '''
+    """
     fmt = format_type(datestr)
     newfmt = site_format(site)
     if fmt and newfmt:
@@ -34,7 +34,7 @@ def convert_format(datestr, site):
 
 
 def date_list(date1, date2):
-    '''
+    """
     Takes two datetime objects or datestrings and returns a list of datetime objects
 
     Args:
@@ -48,23 +48,23 @@ def date_list(date1, date2):
         for d in date_list('10_09_2015', '10_04_2015'):
             print datetime.strftime(d, '%m_%d_%Y')
 
-    '''
+    """
     if isinstance(date1, str):
         try:
             date1 = strtodate(date1)
         except BaseException:
-            logging.error('%s is not in m_d_Y format', date1)
+            logging.error("%s is not in m_d_Y format", date1)
     if isinstance(date2, str):
         try:
             date2 = strtodate(date2)
         except BaseException:
-            logging.error('%s is not in m_d_Y format', date2)
+            logging.error("%s is not in m_d_Y format", date2)
     season = date1 - date2
     return [date1 - datetime.timedelta(days=x) for x in range(0, season.days + 1)]
 
 
 def datetostr(dtobj, site):
-    '''
+    """
     Converts datetime object to formats used by different sites
 
     Args:
@@ -74,12 +74,12 @@ def datetostr(dtobj, site):
     Returns:
         datestr in specified format
 
-    '''
+    """
     return datetime.datetime.strftime(dtobj, site_format(site))
 
 
 def format_type(datestr):
-    '''
+    """
     Uses regular expressions to determine format of datestring
 
     Args:
@@ -88,25 +88,25 @@ def format_type(datestr):
     Returns:
         fmt (str): format string for date
 
-    '''
+    """
     val = None
-    if re.match(r'\d{1,2}_\d{1,2}_\d{4}', datestr):
-        val = site_format('fl')
-    elif re.match(r'\d{4}-\d{2}-\d{2}', datestr):
-        val = site_format('nfl')
-    elif re.match(r'\d{1,2}-\d{1,2}-\d{4}', datestr):
-        val = site_format('std')
-    elif re.match(r'\d{1,2}/\d{1,2}/\d{4}', datestr):
-        val = site_format('odd')
-    elif re.match(r'\d{8}', datestr):
-        val = site_format('db')
-    elif re.match(r'\w+ \d+, \d+', datestr):
-        val = site_format('bdy')
+    if re.match(r"\d{1,2}_\d{1,2}_\d{4}", datestr):
+        val = site_format("fl")
+    elif re.match(r"\d{4}-\d{2}-\d{2}", datestr):
+        val = site_format("nfl")
+    elif re.match(r"\d{1,2}-\d{1,2}-\d{4}", datestr):
+        val = site_format("std")
+    elif re.match(r"\d{1,2}/\d{1,2}/\d{4}", datestr):
+        val = site_format("odd")
+    elif re.match(r"\d{8}", datestr):
+        val = site_format("db")
+    elif re.match(r"\w+ \d+, \d+", datestr):
+        val = site_format("bdy")
     return val
 
 
 def site_format(site):
-    '''
+    """
     Stores date formats used by different sites
 
     Args:
@@ -115,22 +115,22 @@ def site_format(site):
     Returns:
         str
 
-    '''
+    """
     return {
-        'std': '%m-%d-%Y',
-        'fl': '%m_%d_%Y',
-        'fl2017': '%m-%d-%Y',
-        'fl_matchups': '%-m-%-d-%Y',
-        'nfl': '%Y-%m-%d',
-        'odd': '%m/%d/%Y',
-        'db': '%Y%m%d',
-        'bdy': '%B %d, %Y',
-        'espn_fantasy': '%Y%m%d'
+        "std": "%m-%d-%Y",
+        "fl": "%m_%d_%Y",
+        "fl2017": "%m-%d-%Y",
+        "fl_matchups": "%-m-%-d-%Y",
+        "nfl": "%Y-%m-%d",
+        "odd": "%m/%d/%Y",
+        "db": "%Y%m%d",
+        "bdy": "%B %d, %Y",
+        "espn_fantasy": "%Y%m%d",
     }.get(site, None)
 
 
 def strtodate(dstr):
-    '''
+    """
     Converts date formats used by different sites
 
     Args:
@@ -139,12 +139,12 @@ def strtodate(dstr):
     Returns:
         datetime.datetime
 
-    '''
+    """
     return datetime.datetime.strptime(dstr, format_type(dstr))
 
 
 def subtract_datestr(date1, date2):
-    '''
+    """
     Subtracts d2 from d1
 
     Args:
@@ -154,7 +154,7 @@ def subtract_datestr(date1, date2):
     Returns:
         int: number of days between dates
 
-    '''
+    """
     if isinstance(date1, str):
         delta = strtodate(date1) - strtodate(date2)
     else:
@@ -162,8 +162,8 @@ def subtract_datestr(date1, date2):
     return delta.days
 
 
-def today(fmt='nfl'):
-    '''
+def today(fmt="nfl"):
+    """
     Datestring for today's date
 
     Args:
@@ -172,15 +172,15 @@ def today(fmt='nfl'):
     Returns:
         str
 
-    '''
+    """
     fmt = site_format(fmt)
     if not fmt:
-        raise ValueError('invalid date format')
+        raise ValueError("invalid date format")
     return datetime.datetime.strftime(datetime.datetime.today(), fmt)
 
 
-def yesterday(fmt='nfl'):
-    '''
+def yesterday(fmt="nfl"):
+    """
     Datestring for yesterday's date
 
     Args:
@@ -189,16 +189,17 @@ def yesterday(fmt='nfl'):
     Returns:
         str
 
-    '''
+    """
     fmt = site_format(fmt)
     if not fmt:
-        raise ValueError('invalid date format')
+        raise ValueError("invalid date format")
     return datetime.datetime.strftime(
-        datetime.datetime.today() - datetime.timedelta(1), fmt)
+        datetime.datetime.today() - datetime.timedelta(1), fmt
+    )
 
 
-def yesterday_x(interval, fmt='nfl'):
-    '''
+def yesterday_x(interval, fmt="nfl"):
+    """
     Datestring for two days ago date
 
     Args:
@@ -207,15 +208,14 @@ def yesterday_x(interval, fmt='nfl'):
     Returns:
         str
 
-    '''
+    """
     fmt = site_format(fmt)
     if not fmt:
-        raise ValueError('invalid date format')
+        raise ValueError("invalid date format")
     return datetime.datetime.strftime(
-        datetime.datetime.today() -
-        datetime.timedelta(interval),
-        fmt)
+        datetime.datetime.today() - datetime.timedelta(interval), fmt
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass

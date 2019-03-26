@@ -1,4 +1,4 @@
-'''
+"""
 fantasylabs.py
 
 Parser and agent for site
@@ -13,7 +13,7 @@ Usage:
     pl = a.p.site_players(model, 'dk')
     print(pl)
 
-'''
+"""
 
 import logging
 from random import random, randint
@@ -24,12 +24,13 @@ from .dates import today
 
 
 class BScraper(BrowserScraper):
-    '''
+    """
     Uses browser to access fantasylabs resources
 
-    '''
-    def model(self, sport, datestr=None, model_id='1950741'):
-        '''
+    """
+
+    def model(self, sport, datestr=None, model_id="1950741"):
+        """
 
         Args:
             sport(str): 'nba', etc.
@@ -38,44 +39,45 @@ class BScraper(BrowserScraper):
         Returns:
             dict - parsed JSON
 
-        '''
+        """
         if not datestr:
-            datestr = today(fmt='fl')
+            datestr = today(fmt="fl")
 
-        if sport == 'nba':
-            referrer_url = 'https://www.fantasylabs.com/nba/player-models/'
-            model_url = (f'https://www.fantasylabs.com/api/playermodel/2/'
-                         f'{datestr}/?modelId={model_id}&projOnly=true')
+        if sport == "nba":
+            referrer_url = "https://www.fantasylabs.com/nba/player-models/"
+            model_url = (
+                f"https://www.fantasylabs.com/api/playermodel/2/"
+                f"{datestr}/?modelId={model_id}&projOnly=true"
+            )
             self.get(referrer_url)
             sleep(randint(1, 3) * random())
             return self.get_json(model_url)
         else:
-            raise ValueError('sports other than NBA not implemented yet')
+            raise ValueError("sports other than NBA not implemented yet")
 
 
-class Parser():
-    '''
+class Parser:
+    """
     Parses fantasylabs JSON resources
 
-    '''
-    def __init__(self):
-        '''
+    """
 
-        '''
+    def __init__(self):
+        """
+
+        """
         logging.getLogger(__name__).addHandler(logging.NullHandler())
 
-
     def model(self):
-        '''
+        """
 
         Returns:
 
-        '''
+        """
         pass
 
-
-    def site_players(self, model, site='dk', wanted=None):
-        '''
+    def site_players(self, model, site="dk", wanted=None):
+        """
         Gets all players from single DFS site
 
         Args:
@@ -86,29 +88,42 @@ class Parser():
         Returns:
             list: of dict
 
-        '''
-        players = model['PlayerModels']
+        """
+        players = model["PlayerModels"]
         if not wanted:
-            wanted = ['AvgPts', 'Ceiling', 'CeilingPct',
-                      'Floor', 'FloorPct', 'InjuryStatus',
-                      'PlayerId', 'Player_Name', 'Position',
-                      'PositionId', 'Salary', 'Score',
-                      'SourceId', 'Team', 'p_own_num']
-        sites = {'fd': 3, 'dk': 4, 'fdr': 7, 'yh': 11}
+            wanted = [
+                "AvgPts",
+                "Ceiling",
+                "CeilingPct",
+                "Floor",
+                "FloorPct",
+                "InjuryStatus",
+                "PlayerId",
+                "Player_Name",
+                "Position",
+                "PositionId",
+                "Salary",
+                "Score",
+                "SourceId",
+                "Team",
+                "p_own_num",
+            ]
+        sites = {"fd": 3, "dk": 4, "fdr": 7, "yh": 11}
         site_id = sites.get(site)
-        site_players = [p['Properties'] for p in players if
-                        p['Properties']['SourceId'] == site_id]
-        return [{k: v for k, v in sp.items() if k in wanted} for
-                sp in site_players]
+        site_players = [
+            p["Properties"] for p in players if p["Properties"]["SourceId"] == site_id
+        ]
+        return [{k: v for k, v in sp.items() if k in wanted} for sp in site_players]
 
 
-class Agent():
-    '''
+class Agent:
+    """
     Combines scraper and parser for common tasks
 
-    '''
+    """
+
     def __init__(self, profile, sport):
-        '''
+        """
         Creates Agent object
 
         Args:
@@ -118,14 +133,14 @@ class Agent():
         Returns:
             Agent
 
-        '''
+        """
         logging.getLogger(__name__).addHandler(logging.NullHandler())
         self.scraper = BScraper(profile=profile)
         self.parser = Parser()
         self.sport = sport
 
     def matchups(self, datestr=None):
-        '''
+        """
         Gets matchups from one day
 
         Args:
@@ -134,11 +149,11 @@ class Agent():
         Returns:
             list: of dict
 
-        '''
+        """
         pass
 
     def model(self, datestr=None):
-        '''
+        """
         Gets model from one day
 
         Args:
@@ -147,11 +162,11 @@ class Agent():
         Returns:
             list: of dict
 
-        '''
+        """
         pass
 
-    def site_players(self, site='dk', datestr=None):
-        '''
+    def site_players(self, site="dk", datestr=None):
+        """
         Gets player data for one dfs site
 
         Args:
@@ -161,10 +176,10 @@ class Agent():
         Returns:
             list: of dict
 
-        '''
+        """
         model = self.scraper.model(self.sport, datestr)
         return self.parser.site_players(model, site)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass
